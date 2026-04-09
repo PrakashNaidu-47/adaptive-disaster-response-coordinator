@@ -8,9 +8,23 @@ const disasterRoutes = require("./routes/disasterRoutes");
 const app = express();
 const PORT = Number(process.env.PORT || 5000);
 
+const normalizeOrigin = (value) => (value ? value.replace(/\/$/, "") : value);
+const allowedOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => normalizeOrigin(origin.trim()))
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || true,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.length === 0) return callback(null, true);
+      const normalized = normalizeOrigin(origin);
+      if (allowedOrigins.includes(normalized)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
   })
 );
 app.use(express.json({ limit: "1mb" }));
