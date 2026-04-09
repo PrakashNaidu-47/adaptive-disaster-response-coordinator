@@ -1,6 +1,7 @@
 const axios = require("axios");
 
-const PYTHON_API_URL = process.env.PYTHON_API_URL || "http://127.0.0.1:8000";
+const normalizeBaseUrl = (value) => (value ? value.replace(/\/$/, "") : value);
+const PYTHON_API_URL = normalizeBaseUrl(process.env.PYTHON_API_URL) || "http://127.0.0.1:8000";
 
 const client = axios.create({
   baseURL: PYTHON_API_URL,
