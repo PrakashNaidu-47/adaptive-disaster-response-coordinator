@@ -124,12 +124,36 @@ const Dashboard = () => {
     setAlertError("");
     setAlertResult(null);
 
+    const channels = Object.entries(alertChannels)
+      .filter(([, enabled]) => enabled)
+      .map(([channel]) => channel);
+    const parseRecipientList = (value) =>
+      String(value || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    const phoneRecipients = parseRecipientList(alertRecipients);
+    const emailRecipients = parseRecipientList(alertEmailRecipients);
+
     if (!alertMessage.trim()) {
       setAlertError("Alert message is required.");
       return;
     }
 
-    if (!alertEmailRecipients.trim()) {
+    if (channels.length === 0) {
+      setAlertError("Select at least one delivery channel.");
+      return;
+    }
+
+    const needsPhone = channels.some((channel) => ["sms", "whatsapp", "voice"].includes(channel));
+    const needsEmail = channels.includes("email");
+
+    if (needsPhone && phoneRecipients.length === 0) {
+      setAlertError("Add at least one phone recipient.");
+      return;
+    }
+
+    if (needsEmail && emailRecipients.length === 0) {
       setAlertError("Add at least one email recipient.");
       return;
     }
@@ -139,9 +163,10 @@ const Dashboard = () => {
       const response = await sendCitizenAlert({
         message: alertMessage.trim(),
         target_language: alertLanguage,
-        channels: ["email"],
+        channels,
+        recipients: phoneRecipients,
         channel_targets: {
-          email: alertEmailRecipients,
+          email: emailRecipients,
         },
       });
       setAlertResult(response.data?.data || null);
