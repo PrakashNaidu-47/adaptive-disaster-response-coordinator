@@ -5,7 +5,10 @@ const {
   checkEngineHealth,
 } = require("../services/pythonService");
 const { createPagerDutyIncident } = require("../services/dispatchService");
-const { sendSmsAlert } = require("../services/notificationService");
+const {
+  sendAlertNotifications,
+  normalizeRecipients,
+} = require("../services/notificationService");
 const {
   saveSimulation,
   listSimulations,
@@ -187,11 +190,15 @@ const sendCitizenAlert = async (req, res) => {
     message,
     target_language = "en",
     assessment_id = null,
+    channels = ["email"],
+    channel_targets = {},
+    email_subject = null,
   } = req.body;
 
-  const normalizedRecipients = Array.isArray(recipients)
-    ? recipients.map((item) => String(item).trim()).filter(Boolean)
-    : [];
+  const channelTargets = channel_targets || {};
+  const emailRecipients = normalizeRecipients(
+    channelTargets.email || req.body.email_recipients || recipients
+  );
 
   try {
     let body = message;
@@ -209,17 +216,30 @@ const sendCitizenAlert = async (req, res) => {
       ].join(" ");
     }
 
-    if (!body || normalizedRecipients.length === 0) {
+    if (!body) {
       return res.status(400).json({
         success: false,
         message: "Provide recipients and either message or assessment_id.",
       });
     }
 
-    const result = await sendSmsAlert({
-      recipients: normalizedRecipients,
-      body,
+    const hasAnyTargets = emailRecipients.length;
+
+    if (!hasAnyTargets) {
+      return res.status(400).json({
+        success: false,
+        message: "Provide recipients and either message or assessment_id.",
+      });
+    }
+
+    const result = await sendAlertNotifications({
+      channels,
+      message: body,
       targetLanguage: target_language,
+      emailSubject: email_subject,
+      targets: {
+        email: emailRecipients,
+      },
     });
     return res.status(200).json({ success: true, data: result });
   } catch (error) {

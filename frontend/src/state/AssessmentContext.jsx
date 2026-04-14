@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 const AssessmentContext = createContext(null);
@@ -46,4 +47,3 @@ export const useAssessment = () => {
   }
   return context;
 };
-

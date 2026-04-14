@@ -28,15 +28,8 @@ const Dashboard = () => {
   const [bootLoading, setBootLoading] = useState(true);
   const [error, setError] = useState("");
   const [alertMessage, setAlertMessage] = useState("");
-  const [alertRecipients, setAlertRecipients] = useState("");
   const [alertEmailRecipients, setAlertEmailRecipients] = useState("");
   const [alertLanguage, setAlertLanguage] = useState("en");
-  const [alertChannels, setAlertChannels] = useState({
-    sms: false,
-    whatsapp: false,
-    voice: false,
-    email: true,
-  });
   const [alertSending, setAlertSending] = useState(false);
   const [alertError, setAlertError] = useState("");
   const [alertResult, setAlertResult] = useState(null);
@@ -122,13 +115,6 @@ const Dashboard = () => {
       }. Hazards: ${(result.situation?.hazards || []).join(", ") || "n/a"}.`
     : "";
 
-  const handleAlertChannelToggle = (channel) => {
-    setAlertChannels((current) => ({
-      ...current,
-      [channel]: !current[channel],
-    }));
-  };
-
   const handleFillAlert = () => {
     if (!alertTemplate) return;
     setAlertMessage(alertTemplate);
@@ -138,36 +124,26 @@ const Dashboard = () => {
     setAlertError("");
     setAlertResult(null);
 
-    const channels = Object.entries(alertChannels)
-      .filter(([, enabled]) => enabled)
-      .map(([channel]) => channel);
     const parseRecipientList = (value) =>
       String(value || "")
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
-    const phoneRecipients = parseRecipientList(alertRecipients);
     const emailRecipients = parseRecipientList(alertEmailRecipients);
+    const assessmentId =
+      result?.simulation_id ||
+      result?.simulationId ||
+      result?.assessment_id ||
+      result?.id ||
+      null;
+    const trimmedMessage = alertMessage.trim();
 
-    if (!alertMessage.trim()) {
-      setAlertError("Alert message is required.");
+    if (!trimmedMessage && !assessmentId) {
+      setAlertError("Add an alert message or run an assessment to auto-fill one.");
       return;
     }
 
-    if (channels.length === 0) {
-      setAlertError("Select at least one delivery channel.");
-      return;
-    }
-
-    const needsPhone = channels.some((channel) => ["sms", "whatsapp", "voice"].includes(channel));
-    const needsEmail = channels.includes("email");
-
-    if (needsPhone && phoneRecipients.length === 0) {
-      setAlertError("Add at least one phone recipient.");
-      return;
-    }
-
-    if (needsEmail && emailRecipients.length === 0) {
+    if (emailRecipients.length === 0) {
       setAlertError("Add at least one email recipient.");
       return;
     }
@@ -175,10 +151,11 @@ const Dashboard = () => {
     setAlertSending(true);
     try {
       const response = await sendCitizenAlert({
-        message: alertMessage.trim(),
+        message: trimmedMessage || undefined,
+        assessment_id: assessmentId,
         target_language: alertLanguage,
-        channels,
-        recipients: phoneRecipients,
+        channels: ["email"],
+        email_recipients: emailRecipients,
         channel_targets: {
           email: emailRecipients,
         },

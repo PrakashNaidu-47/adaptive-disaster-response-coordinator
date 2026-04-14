@@ -78,20 +78,18 @@ const MapPicker = ({ onLocationChange, selectedLocation = null }) => {
   const markerRef = useRef(null);
   const leafletMapRef = useRef(null);
   const pendingSelectionRef = useRef(null);
+  const initialSelectionRef = useRef(selectedLocation || INITIAL_PIN);
   const [mapError, setMapError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searchError, setSearchError] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
-  const [selected, setSelected] = useState({
-    ...(selectedLocation || INITIAL_PIN),
-  });
+  const selected = selectedLocation || INITIAL_PIN;
 
   useEffect(() => {
     let isMounted = true;
 
     const applySelection = (nextLocation, zoomLevel = 11, shouldNotify = true) => {
-      setSelected(nextLocation);
       if (shouldNotify) {
         onLocationChange(nextLocation);
       }
@@ -123,7 +121,7 @@ const MapPicker = ({ onLocationChange, selectedLocation = null }) => {
           maxZoom: 19,
         }).addTo(map);
 
-        const seed = pendingSelectionRef.current?.nextLocation || selected;
+        const seed = pendingSelectionRef.current?.nextLocation || initialSelectionRef.current;
         markerRef.current = L.marker([seed.latitude, seed.longitude]).addTo(map);
 
         map.on("click", async (event) => {
@@ -147,7 +145,7 @@ const MapPicker = ({ onLocationChange, selectedLocation = null }) => {
           );
           pendingSelectionRef.current = null;
         } else {
-          applySelection(selected, map.getZoom(), true);
+          applySelection(seed, map.getZoom(), true);
         }
       } catch {
         if (isMounted) {
@@ -169,13 +167,6 @@ const MapPicker = ({ onLocationChange, selectedLocation = null }) => {
 
   useEffect(() => {
     if (!selectedLocation) return;
-    const isSame =
-      selectedLocation.latitude === selected.latitude &&
-      selectedLocation.longitude === selected.longitude &&
-      selectedLocation.location === selected.location;
-    if (isSame) return;
-
-    setSelected(selectedLocation);
     if (leafletMapRef.current && markerRef.current) {
       markerRef.current.setLatLng([selectedLocation.latitude, selectedLocation.longitude]);
       leafletMapRef.current.setView(
@@ -185,7 +176,7 @@ const MapPicker = ({ onLocationChange, selectedLocation = null }) => {
     } else {
       pendingSelectionRef.current = { nextLocation: selectedLocation, zoomLevel: 11 };
     }
-  }, [selectedLocation, selected.latitude, selected.longitude, selected.location]);
+  }, [selectedLocation]);
 
   const handleSearchSubmit = async (event) => {
     event.preventDefault();
@@ -219,7 +210,6 @@ const MapPicker = ({ onLocationChange, selectedLocation = null }) => {
     setSearchResults([]);
     setSearchError("");
 
-    setSelected(nextLocation);
     onLocationChange(nextLocation);
 
     if (leafletMapRef.current && markerRef.current) {
