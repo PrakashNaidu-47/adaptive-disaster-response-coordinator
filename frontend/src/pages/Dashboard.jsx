@@ -28,8 +28,15 @@ const Dashboard = () => {
   const [bootLoading, setBootLoading] = useState(true);
   const [error, setError] = useState("");
   const [alertMessage, setAlertMessage] = useState("");
+  const [alertRecipients, setAlertRecipients] = useState("");
   const [alertEmailRecipients, setAlertEmailRecipients] = useState("");
   const [alertLanguage, setAlertLanguage] = useState("en");
+  const [alertChannels, setAlertChannels] = useState({
+    sms: false,
+    whatsapp: false,
+    voice: false,
+    email: true,
+  });
   const [alertSending, setAlertSending] = useState(false);
   const [alertError, setAlertError] = useState("");
   const [alertResult, setAlertResult] = useState(null);
@@ -114,6 +121,13 @@ const Dashboard = () => {
         result.situation?.status || "unknown"
       }. Hazards: ${(result.situation?.hazards || []).join(", ") || "n/a"}.`
     : "";
+
+  const handleAlertChannelToggle = (channel) => {
+    setAlertChannels((current) => ({
+      ...current,
+      [channel]: !current[channel],
+    }));
+  };
 
   const handleFillAlert = () => {
     if (!alertTemplate) return;
