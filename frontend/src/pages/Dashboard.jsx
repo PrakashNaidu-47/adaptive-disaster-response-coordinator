@@ -8,6 +8,7 @@ import {
   getHealthStatus,
   getSimulationHistory,
   runAssessment,
+  sendCitizenAlert,
 } from "../services/api";
 import { useAssessment } from "../state/AssessmentContext";
 import { useHazardFeed } from "../hooks/useHazardFeed";
@@ -26,6 +27,12 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(false);
   const [bootLoading, setBootLoading] = useState(true);
   const [error, setError] = useState("");
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertEmailRecipients, setAlertEmailRecipients] = useState("");
+  const [alertLanguage, setAlertLanguage] = useState("en");
+  const [alertSending, setAlertSending] = useState(false);
+  const [alertError, setAlertError] = useState("");
+  const [alertResult, setAlertResult] = useState(null);
   const hazardMapRef = useRef(null);
   const hazardFeed = useHazardFeed();
   useEffect(() => {
@@ -51,7 +58,7 @@ const Dashboard = () => {
       }
     };
     boot();
-  }, []);
+  }, [setHistory]);
 
   const refreshHistory = async () => {
     const historyRes = await getSimulationHistory(12);
@@ -102,6 +109,48 @@ const Dashboard = () => {
   };
 
   const aiEngineStatus = gatewayHealth?.ai_engine?.status || "unknown";
+  const alertTemplate = result
+    ? `Alert for ${result.situation?.location || "current zone"}. Status: ${
+        result.situation?.status || "unknown"
+      }. Hazards: ${(result.situation?.hazards || []).join(", ") || "n/a"}.`
+    : "";
+
+  const handleFillAlert = () => {
+    if (!alertTemplate) return;
+    setAlertMessage(alertTemplate);
+  };
+
+  const handleSendAlert = async () => {
+    setAlertError("");
+    setAlertResult(null);
+
+    if (!alertMessage.trim()) {
+      setAlertError("Alert message is required.");
+      return;
+    }
+
+    if (!alertEmailRecipients.trim()) {
+      setAlertError("Add at least one email recipient.");
+      return;
+    }
+
+    setAlertSending(true);
+    try {
+      const response = await sendCitizenAlert({
+        message: alertMessage.trim(),
+        target_language: alertLanguage,
+        channels: ["email"],
+        channel_targets: {
+          email: alertEmailRecipients,
+        },
+      });
+      setAlertResult(response.data?.data || null);
+    } catch (sendError) {
+      setAlertError(sendError.response?.data?.message || sendError.message);
+    } finally {
+      setAlertSending(false);
+    }
+  };
 
   return (
     <div className="dashboard-page">
@@ -197,6 +246,81 @@ const Dashboard = () => {
           error={hazardFeed.error}
           onSelect={handleHazardSelect}
         />
+      </section>
+
+      <section className="panel alert-panel">
+        <div className="panel-header">
+          <div>
+            <h2>Send Alert</h2>
+            <p className="hero-copy">
+              Send critical instructions via email in seconds.
+            </p>
+          </div>
+          <button type="button" className="ghost-button" onClick={handleFillAlert}>
+            Use active assessment
+          </button>
+        </div>
+        <div className="form-grid">
+          <label>
+            Email recipients (comma separated)
+            <input
+              type="text"
+              value={alertEmailRecipients}
+              onChange={(event) => setAlertEmailRecipients(event.target.value)}
+              placeholder="ops@district.gov.in, relief@district.gov.in"
+            />
+          </label>
+          <label>
+            Alert message
+            <textarea
+              rows="4"
+              value={alertMessage}
+              onChange={(event) => setAlertMessage(event.target.value)}
+              placeholder="Type the alert message to broadcast."
+            />
+          </label>
+          <label>
+            Language
+            <select
+              value={alertLanguage}
+              onChange={(event) => setAlertLanguage(event.target.value)}
+            >
+              <option value="en">English</option>
+              <option value="te">Telugu</option>
+              <option value="hi">Hindi</option>
+              <option value="ta">Tamil</option>
+            </select>
+          </label>
+          <button type="button" onClick={handleSendAlert} disabled={alertSending}>
+            {alertSending ? "Sending Alert..." : "Send Alert"}
+          </button>
+        </div>
+        {alertError ? <p className="error">{alertError}</p> : null}
+        {alertResult ? (
+          <div className="alert-result">
+            <strong>Delivery report</strong>
+            <div className="context-note">
+              Sent: {alertResult.total_sent || 0} | Failed: {alertResult.total_failed || 0}
+            </div>
+            <ul>
+              {Object.entries(alertResult.channels || {}).map(([channel, data]) => {
+                const results = data?.results || [];
+                const sent = results.filter((item) => !item.error).length;
+                const failed = results.filter((item) => item.error).length;
+                const hasNoResults = results.length === 0;
+                const fallbackFailed =
+                  hasNoResults && data?.status === "failed" ? 1 : 0;
+                const totalFailed = failed || fallbackFailed;
+                return (
+                  <li key={channel}>
+                    {channel.toUpperCase()}: {sent} sent / {totalFailed} failed
+                    {data?.error ? ` (${data.error})` : ""}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
       </section>
 
       {bootLoading ? <p className="loading-hint">Loading project data...</p> : null}

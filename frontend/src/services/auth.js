@@ -49,9 +49,15 @@ export const signInWithPassword = async ({ email, password }) => {
 };
 
 export const signUpWithPassword = async ({ email, password }) => {
+  const baseUrl =
+    import.meta.env.VITE_SITE_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "");
+  const emailRedirectTo = baseUrl ? `${baseUrl.replace(/\/$/, "")}/login` : undefined;
+
   const response = await authClient.post("/signup", {
     email,
     password,
+    ...(emailRedirectTo ? { email_redirect_to: emailRedirectTo } : {}),
   });
 
   const result = response.data;
